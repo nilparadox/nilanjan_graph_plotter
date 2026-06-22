@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>2D / 3D Graph Plotter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/13.0.3/math.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #020617, #172554, #0f172a);
+      color: #111827;
+    }
+
+    header {
+      color: white;
+      text-align: center;
+      padding: 22px 12px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 32px;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      color: #cbd5e1;
+      font-size: 15px;
+    }
+
+    .main {
+      max-width: 1450px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 370px 1fr;
+      gap: 16px;
+    }
+
+    .panel, .plot-card {
+      background: white;
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 18px 45px rgba(0,0,0,0.28);
+    }
+
+    .panel {
+      max-height: 84vh;
+      overflow: auto;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+      margin-bottom: 6px;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      font-size: 14px;
+    }
+
+    textarea {
+      min-height: 85px;
+      resize: vertical;
+      font-family: monospace;
+    }
+
+    button {
+      margin-top: 9px;
+      border: none;
+      color: white;
+      background: #2563eb;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:hover { background: #1d4ed8; }
+
+    .green { background: #059669; }
+    .green:hover { background: #047857; }
+
+    .red { background: #dc2626; }
+    .red:hover { background: #b91c1c; }
+
+    .dark { background: #374151; }
+    .dark:hover { background: #1f2937; }
+
+    .purple { background: #7c3aed; }
+    .purple:hover { background: #6d28d9; }
+
+    .orange { background: #ea580c; }
+    .orange:hover { background: #c2410c; }
+
+    .small-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .three-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+
+    .hint {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.45;
+      margin-top: 10px;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-weight: 700;
+      color: #374151;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .plot-card {
+      min-height: 720px;
+      position: relative;
+    }
+
+    #plot {
+      width: 100%;
+      height: 680px;
+      border: 2px solid #111827;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    #drawLayer {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      top: 16px;
+      height: 680px;
+      pointer-events: none;
+      border-radius: 14px;
+    }
+
+    footer {
+      color: #cbd5e1;
+      text-align: center;
+      padding: 20px;
+      font-size: 14px;
+    }
+
+    @media (max-width: 950px) {
+      .main { grid-template-columns: 1fr; }
+      .panel { max-height: none; }
+      #plot { height: 600px; }
+      #drawLayer { height: 600px; }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>2D / 3D Graph Plotter</h1>
+  <p>Manual data, function plotting, samples, area under curve, level tags, annotations, and free draw.</p>
+</header>
+
+<div class="main">
+
+  <div class="panel">
+
+    <label>Graph Mode</label>
+    <select id="plotMode" onchange="updateModeUI()">
+      <option value="2d">2D Plot</option>
+      <option value="3d">3D Plot</option>
+    </select>
+
+    <label>Input Type</label>
+    <select id="inputType" onchange="updateModeUI()">
+      <option value="function">Function</option>
+      <option value="manual">Manual Data Columns</option>
+    </select>
+
+    <label>Sample Function</label>
+    <select id="sampleSelect" onchange="loadSample()">
+      <option value="">Choose sample</option>
+      <option value="linear">2D: y = a*x + b</option>
+      <option value="quadratic">2D: y = a*(x^2) + b*x + c</option>
+      <option value="sine">2D: y = a*sin(b*x)</option>
+      <option value="damped">2D: y = a*exp(-b*x)*sin(c*x)</option>
+      <option value="gaussian">2D: y = a*exp(-((x-b)^2)/c)</option>
+      <option value="surface_wave">3D: z = a*sin(b*x)*cos(c*y)</option>
+      <option value="paraboloid">3D: z = a*(x^2 + y^2)</option>
+      <option value="saddle">3D: z = a*(x^2 - y^2)</option>
+    </select>
+
+    <div id="functionBox">
+      <label>Function</label>
+      <input id="functionInput" value="y = 2*(x^2)*sin(x)" />
+      <div class="hint">
+        2D format: <b>y = 2*(x^2)*sin(x)</b><br>
+        3D format: <b>z = sin(x)*cos(y)</b>
+      </div>
+
+      <label>Parameters</label>
+      <div class="three-row">
+        <input id="paramA" type="number" step="any" value="1" placeholder="a" />
+        <input id="paramB" type="number" step="any" value="1" placeholder="b" />
+        <input id="paramC" type="number" step="any" value="1" placeholder="c" />
+      </div>
+    </div>
+
+    <div id="manual2DBox">
+      <label>X Column</label>
+      <textarea id="xData">0, 1, 2, 3, 4, 5</textarea>
+
+      <label>Y Column</label>
+      <textarea id="yData">0, 1, 4, 9, 16, 25</textarea>
+    </div>
+
+    <div id="manual3DBox">
+      <label>X Column</label>
+      <textarea id="x3Data">0, 1, 2, 3, 4</textarea>
+
+      <label>Y Column</label>
+      <textarea id="y3Data">0, 1, 2, 3, 4</textarea>
+
+      <label>Z Column</label>
+      <textarea id="z3Data">0, 1, 4, 9, 16</textarea>
+    </div>
+
+    <label>Range</label>
+    <div class="small-row">
+      <input id="xMin" type="number" step="any" value="-5" placeholder="x min" />
+      <input id="xMax" type="number" step="any" value="5" placeholder="x max" />
+    </div>
+
+    <div class="small-row" id="yRangeBox">
+      <input id="yMin" type="number" step="any" value="-5" placeholder="y min for 3D" />
+      <input id="yMax" type="number" step="any" value="5" placeholder="y max for 3D" />
+    </div>
+
+    <label>Step / Resolution</label>
+    <input id="stepSize" type="number" step="any" value="0.05" />
+
+    <button onclick="plotGraph()">Plot Graph</button>
+
+    <label>Area Under Curve — 2D Function Only</label>
+    <div class="small-row">
+      <input id="areaA" type="number" step="any" value="0" placeholder="from x" />
+      <input id="areaB" type="number" step="any" value="2" placeholder="to x" />
+    </div>
+
+    <div class="small-row">
+      <button class="purple" onclick="shadeAreaManual()">Shade Area</button>
+      <button class="dark" onclick="toggleClickArea()">Click Select Area</button>
+    </div>
+
+    <label>Annotation / Tag</label>
+    <div class="small-row">
+      <input id="tagX" type="number" step="any" value="0" placeholder="x" />
+      <input id="tagY" type="number" step="any" value="0" placeholder="y" />
+    </div>
+
+    <input id="tagText" value="Level 1" placeholder="Tag text" />
+
+    <div class="small-row">
+      <button class="orange" onclick="addTag()">Add Tag</button>
+      <button class="red" onclick="clearTags()">Clear Tags</button>
+    </div>
+
+    <label>Free Draw</label>
+    <select id="drawToggle" onchange="toggleDrawMode()">
+      <option value="off">Free draw off</option>
+      <option value="on">Free draw on</option>
+    </select>
+
+    <div class="small-row">
+      <button class="dark" onclick="clearDraw()">Clear Draw</button>
+      <button class="green" onclick="downloadPNG()">Download PNG</button>
+    </div>
+
+    <button class="green" onclick="saveProject()">Save Project JSON</button>
+
+    <label>Load Project JSON</label>
+    <input type="file" accept=".json,application/json" onchange="loadProject(event)" />
+
+    <div class="hint">
+      <b>Notes:</b><br>
+      Area shading works for 2D functions. For click-select area, click two curve points after enabling it.
+      Free draw is for screenshot/teaching markup. Plotly PNG export may not include free-hand strokes in all browsers, so manual screenshot is safest for free draw.
+    </div>
+
+    <div class="status" id="statusText">Ready</div>
+  </div>
+
+  <div class="plot-card">
+    <div id="plot"></div>
+    <svg id="drawLayer"></svg>
+  </div>
+
+</div>
+
+<footer>
+  Static GitHub Pages graph plotter
+</footer>
+
+<script>
+  let currentTraceData = null;
+  let currentAreaTrace = null;
+  let tags = [];
+  let clickAreaMode = false;
+  let clickAreaPoints = [];
+  let freeDrawOn = false;
+  let drawing = false;
+  let currentPath = [];
+  let freePaths = [];
+
+  const plotDiv = document.getElementById("plot");
+  const drawLayer = document.getElementById("drawLayer");
+
+  function parseList(text) {
+    return text
+      .split(/[\n, ]+/)
+      .map(v => v.trim())
+      .filter(v => v !== "")
+      .map(Number)
+      .filter(v => !Number.isNaN(v));
+  }
+
+  function updateModeUI() {
+    const mode = document.getElementById("plotMode").value;
+    const inputType = document.getElementById("inputType").value;
+
+    document.getElementById("functionBox").style.display = inputType === "function" ? "block" : "none";
+    document.getElementById("manual2DBox").style.display = inputType === "manual" && mode === "2d" ? "block" : "none";
+    document.getElementById("manual3DBox").style.display = inputType === "manual" && mode === "3d" ? "block" : "none";
+    document.getElementById("yRangeBox").style.display = mode === "3d" ? "grid" : "none";
+  }
+
+  function loadSample() {
+    const sample = document.getElementById("sampleSelect").value;
+
+    if (sample === "linear") {
+      document.getElementById("plotMode").value = "2d";
+      document.getElementById("inputType").value = "function";
+      document.getElementById("functionInput").value = "y = a*x + b";
+      setParams(2, 1, 1);
+    }
+
+    if (sample === "quadratic") {
+      document.getElementById("plotMode").value = "2d";
+      document.getElementById("inputType").value = "function";
+      document.getElementById("functionInput").value = "y = a*(x^2) + b*x + c";
+      setParams(1, 0, 0);
+    }
+
+    if (sample === "sine") {
+      document.getElementById("plotMode").value = "2d";
+      document.getElementById("inputType").value = "function";
+      document.getElementById("functionInput").value = "y = a*sin(b*x)";
+      setParams(1, 2, 1);
+    }
+
+    if (sample === "damped") {
+      document.getElementById("plotMode").value = "2d";
+      document.getElementById("inputType").value = "function";
+      document.getElementById("functionInput").value = "y = a*exp(-b*x)*sin(c*x)";
+      setParams(1, 0.3, 5);
+      document.getElementById("xMin").value = 0;
+      document.getElementById("xMax").value = 10;
+    }
+
+    if (sample === "gaussian") {
+      document.getElementById("plotMode").value = "2d";
+      document.getElementById("inputType").value = "function";
+      document.getElementById("functionInput").value = "y = a*exp(-((x-b)^2)/c)";
+      setParams(1, 0, 2);
+    }
+
+    if (sample === "surface_wave") {
+      document.getElementById("plotMode").value = "3d";
+      document.getElementById("inputType").value = "function";
+      document.getElementById("functionInput").value = "z = a*sin(b*x)*cos(c*y)";
+      setParams(1, 1, 1);
+    }
+
+    if (sample === "paraboloid") {
+      document.getElementById("plotMode").value = "3d";
+      document.getElementById("inputType").value = "function";
+      document.getElementById("functionInput").value = "z = a*(x^2 + y^2)";
+      setParams(0.2, 1, 1);
+    }
+
+    if (sample === "saddle") {
+      document.getElementById("plotMode").value = "3d";
+      document.getElementById("inputType").value = "function";
+      document.getElementById("functionInput").value = "z = a*(x^2 - y^2)";
+      setParams(0.2, 1, 1);
+    }
+
+    updateModeUI();
+    plotGraph();
+  }
+
+  function setParams(a, b, c) {
+    document.getElementById("paramA").value = a;
+    document.getElementById("paramB").value = b;
+    document.getElementById("paramC").value = c;
+  }
+
+  function cleanExpression(raw) {
+    let expr = raw.trim();
+    expr = expr.replace(/^y\s*=/i, "");
+    expr = expr.replace(/^z\s*=/i, "");
+    return expr;
+  }
+
+  function getScope(extra = {}) {
+    return {
+      a: Number(document.getElementById("paramA").value),
+      b: Number(document.getElementById("paramB").value),
+      c: Number(document.getElementById("paramC").value),
+      pi: Math.PI,
+      e: Math.E,
+      ...extra
+    };
+  }
+
+  function plotGraph() {
+    const mode = document.getElementById("plotMode").value;
+    const inputType = document.getElementById("inputType").value;
+
+    currentAreaTrace = null;
+    clickAreaPoints = [];
+
+    try {
+      if (mode === "2d" && inputType === "function") plot2DFunction();
+      if (mode === "2d" && inputType === "manual") plot2DManual();
+      if (mode === "3d" && inputType === "function") plot3DFunction();
+      if (mode === "3d" && inputType === "manual") plot3DManual();
+    } catch (err) {
+      alert("Plot error: " + err.message);
+    }
+  }
+
+  function plot2DFunction() {
+    const expr = cleanExpression(document.getElementById("functionInput").value);
+    const compiled = math.compile(expr);
+
+    const xMin = Number(document.getElementById("xMin").value);
+    const xMax = Number(document.getElementById("xMax").value);
+    const step = Math.abs(Number(document.getElementById("stepSize").value)) || 0.05;
+
+    const xs = [];
+    const ys = [];
+
+    for (let x = xMin; x <= xMax + 1e-12; x += step) {
+      const y = compiled.evaluate(getScope({ x }));
+      if (Number.isFinite(y)) {
+        xs.push(x);
+        ys.push(y);
+      }
+    }
+
+    currentTraceData = { type: "2d-function", x: xs, y: ys, expr };
+
+    const trace = {
+      x: xs,
+      y: ys,
+      type: "scatter",
+      mode: "lines",
+      name: document.getElementById("functionInput").value,
+      line: { width: 3 }
+    };
+
+    const layout = base2DLayout("2D Function Plot");
+    drawPlot([trace], layout);
+  }
+
+  function plot2DManual() {
+    const xs = parseList(document.getElementById("xData").value);
+    const ys = parseList(document.getElementById("yData").value);
+
+    if (xs.length !== ys.length || xs.length === 0) {
+      alert("X and Y columns must have the same non-zero length.");
+      return;
+    }
+
+    currentTraceData = { type: "2d-manual", x: xs, y: ys };
+
+    const trace = {
+      x: xs,
+      y: ys,
+      type: "scatter",
+      mode: "lines+markers",
+      name: "Manual data",
+      line: { width: 3 },
+      marker: { size: 7 }
+    };
+
+    const layout = base2DLayout("2D Manual Data Plot");
+    drawPlot([trace], layout);
+  }
+
+  function plot3DFunction() {
+    const expr = cleanExpression(document.getElementById("functionInput").value);
+    const compiled = math.compile(expr);
+
+    const xMin = Number(document.getElementById("xMin").value);
+    const xMax = Number(document.getElementById("xMax").value);
+    const yMin = Number(document.getElementById("yMin").value);
+    const yMax = Number(document.getElementById("yMax").value);
+    const step = Math.abs(Number(document.getElementById("stepSize").value)) || 0.25;
+
+    const xs = [];
+    const ys = [];
+    const zGrid = [];
+
+    for (let x = xMin; x <= xMax + 1e-12; x += step) xs.push(x);
+    for (let y = yMin; y <= yMax + 1e-12; y += step) ys.push(y);
+
+    for (let j = 0; j < ys.length; j++) {
+      const row = [];
+      for (let i = 0; i < xs.length; i++) {
+        const z = compiled.evaluate(getScope({ x: xs[i], y: ys[j] }));
+        row.push(Number.isFinite(z) ? z : null);
+      }
+      zGrid.push(row);
+    }
+
+    currentTraceData = { type: "3d-function", x: xs, y: ys, z: zGrid, expr };
+
+    const trace = {
+      x: xs,
+      y: ys,
+      z: zGrid,
+      type: "surface",
+      colorscale: "Viridis",
+      name: document.getElementById("functionInput").value
+    };
+
+    const layout = base3DLayout("3D Function Surface");
+    drawPlot([trace], layout);
+  }
+
+  function plot3DManual() {
+    const xs = parseList(document.getElementById("x3Data").value);
+    const ys = parseList(document.getElementById("y3Data").value);
+    const zs = parseList(document.getElementById("z3Data").value);
+
+    if (xs.length !== ys.length || xs.length !== zs.length || xs.length === 0) {
+      alert("X, Y, Z columns must have the same non-zero length.");
+      return;
+    }
+
+    currentTraceData = { type: "3d-manual", x: xs, y: ys, z: zs };
+
+    const trace = {
+      x: xs,
+      y: ys,
+      z: zs,
+      type: "scatter3d",
+      mode: "lines+markers",
+      name: "Manual XYZ data",
+      marker: { size: 5 },
+      line: { width: 5 }
+    };
+
+    const layout = base3DLayout("3D Manual Data Plot");
+    drawPlot([trace], layout);
+  }
+
+  function base2DLayout(title) {
+    return {
+      title,
+      paper_bgcolor: "white",
+      plot_bgcolor: "white",
+      margin: { l: 60, r: 30, t: 60, b: 55 },
+      xaxis: {
+        title: "x",
+        zeroline: true,
+        gridcolor: "#e5e7eb"
+      },
+      yaxis: {
+        title: "y",
+        zeroline: true,
+        gridcolor: "#e5e7eb"
+      },
+      annotations: tags
+    };
+  }
+
+  function base3DLayout(title) {
+    return {
+      title,
+      paper_bgcolor: "white",
+      margin: { l: 0, r: 0, t: 60, b: 0 },
+      scene: {
+        xaxis: { title: "x" },
+        yaxis: { title: "y" },
+        zaxis: { title: "z" }
+      }
+    };
+  }
+
+  function drawPlot(traces, layout) {
+    if (currentAreaTrace) traces.push(currentAreaTrace);
+
+    Plotly.newPlot(plotDiv, traces, layout, {
+      responsive: true,
+      displaylogo: false,
+      scrollZoom: true
+    });
+
+    plotDiv.on("plotly_click", function(data) {
+      if (!clickAreaMode) return;
+      if (!data.points || !data.points.length) return;
+
+      const x = data.points[0].x;
+      clickAreaPoints.push(x);
+
+      if (clickAreaPoints.length === 2) {
+        const a = Math.min(clickAreaPoints[0], clickAreaPoints[1]);
+        const b = Math.max(clickAreaPoints[0], clickAreaPoints[1]);
+        document.getElementById("areaA").value = a;
+        document.getElementById("areaB").value = b;
+        clickAreaMode = false;
+        clickAreaPoints = [];
+        shadeAreaManual();
+      } else {
+        setStatus("First area point selected. Click second point on curve.");
+      }
+    });
+
+    drawFreePaths();
+    setStatus("Graph plotted.");
+  }
+
+  function shadeAreaManual() {
+    if (!currentTraceData || currentTraceData.type !== "2d-function") {
+      alert("Area shading currently works for 2D function plots only.");
+      return;
+    }
+
+    const a = Number(document.getElementById("areaA").value);
+    const b = Number(document.getElementById("areaB").value);
+    const left = Math.min(a, b);
+    const right = Math.max(a, b);
+
+    const xs = currentTraceData.x;
+    const ys = currentTraceData.y;
+
+    const ax = [];
+    const ay = [];
+
+    for (let i = 0; i < xs.length; i++) {
+      if (xs[i] >= left && xs[i] <= right) {
+        ax.push(xs[i]);
+        ay.push(ys[i]);
+      }
+    }
+
+    if (ax.length < 2) {
+      alert("Selected area range does not contain enough plotted points.");
+      return;
+    }
+
+    const polyX = [ax[0], ...ax, ax[ax.length - 1]];
+    const polyY = [0, ...ay, 0];
+
+    currentAreaTrace = {
+      x: polyX,
+      y: polyY,
+      type: "scatter",
+      mode: "lines",
+      fill: "toself",
+      name: "Selected area",
+      line: { width: 1 },
+      opacity: 0.35
+    };
+
+    const area = approximateArea(ax, ay);
+    setStatus("Approx area from x = " + left.toFixed(4) + " to " + right.toFixed(4) + " is " + area.toFixed(6));
+
+    const trace = {
+      x: currentTraceData.x,
+      y: currentTraceData.y,
+      type: "scatter",
+      mode: "lines",
+      name: document.getElementById("functionInput").value,
+      line: { width: 3 }
+    };
+
+    drawPlot([trace], base2DLayout("2D Function Plot with Area"));
+  }
+
+  function approximateArea(xs, ys) {
+    let area = 0;
+    for (let i = 0; i < xs.length - 1; i++) {
+      const dx = xs[i + 1] - xs[i];
+      area += 0.5 * (ys[i] + ys[i + 1]) * dx;
+    }
+    return area;
+  }
+
+  function toggleClickArea() {
+    if (!currentTraceData || currentTraceData.type !== "2d-function") {
+      alert("Click area selection works on 2D function plots.");
+      return;
+    }
+
+    clickAreaMode = !clickAreaMode;
+    clickAreaPoints = [];
+
+    if (clickAreaMode) {
+      setStatus("Click-select area ON. Click two points on the plotted curve.");
+    } else {
+      setStatus("Click-select area OFF.");
+    }
+  }
+
+  function addTag() {
+    const x = Number(document.getElementById("tagX").value);
+    const y = Number(document.getElementById("tagY").value);
+    const text = document.getElementById("tagText").value || "Level";
+
+    tags.push({
+      x,
+      y,
+      text,
+      showarrow: true,
+      arrowhead: 2,
+      ax: 30,
+      ay: -40,
+      bgcolor: "#ffffff",
+      bordercolor: "#111827",
+      borderwidth: 1,
+      font: { size: 14, color: "#111827" }
+    });
+
+    redrawCurrent();
+  }
+
+  function clearTags() {
+    tags = [];
+    redrawCurrent();
+  }
+
+  function redrawCurrent() {
+    if (!currentTraceData) {
+      plotGraph();
+      return;
+    }
+
+    const type = currentTraceData.type;
+
+    if (type === "2d-function") {
+      const trace = {
+        x: currentTraceData.x,
+        y: currentTraceData.y,
+        type: "scatter",
+        mode: "lines",
+        name: document.getElementById("functionInput").value,
+        line: { width: 3 }
+      };
+      drawPlot([trace], base2DLayout("2D Function Plot"));
+    }
+
+    if (type === "2d-manual") {
+      const trace = {
+        x: currentTraceData.x,
+        y: currentTraceData.y,
+        type: "scatter",
+        mode: "lines+markers",
+        name: "Manual data",
+        line: { width: 3 },
+        marker: { size: 7 }
+      };
+      drawPlot([trace], base2DLayout("2D Manual Data Plot"));
+    }
+
+    if (type === "3d-function") {
+      const trace = {
+        x: currentTraceData.x,
+        y: currentTraceData.y,
+        z: currentTraceData.z,
+        type: "surface",
+        colorscale: "Viridis"
+      };
+      drawPlot([trace], base3DLayout("3D Function Surface"));
+    }
+
+    if (type === "3d-manual") {
+      const trace = {
+        x: currentTraceData.x,
+        y: currentTraceData.y,
+        z: currentTraceData.z,
+        type: "scatter3d",
+        mode: "lines+markers"
+      };
+      drawPlot([trace], base3DLayout("3D Manual Data Plot"));
+    }
+  }
+
+  function toggleDrawMode() {
+    freeDrawOn = document.getElementById("drawToggle").value === "on";
+    drawLayer.style.pointerEvents = freeDrawOn ? "auto" : "none";
+    setStatus(freeDrawOn ? "Free draw ON." : "Free draw OFF.");
+  }
+
+  drawLayer.addEventListener("pointerdown", function(evt) {
+    if (!freeDrawOn) return;
+    drawing = true;
+    currentPath = [getDrawPoint(evt)];
+  });
+
+  drawLayer.addEventListener("pointermove", function(evt) {
+    if (!freeDrawOn || !drawing) return;
+    currentPath.push(getDrawPoint(evt));
+    drawFreePaths();
+  });
+
+  drawLayer.addEventListener("pointerup", function() {
+    if (!freeDrawOn || !drawing) return;
+    if (currentPath.length > 1) freePaths.push(currentPath);
+    currentPath = [];
+    drawing = false;
+    drawFreePaths();
+  });
+
+  drawLayer.addEventListener("pointerleave", function() {
+    if (drawing && currentPath.length > 1) freePaths.push(currentPath);
+    currentPath = [];
+    drawing = false;
+    drawFreePaths();
+  });
+
+  function getDrawPoint(evt) {
+    const r = drawLayer.getBoundingClientRect();
+    return {
+      x: evt.clientX - r.left,
+      y: evt.clientY - r.top
+    };
+  }
+
+  function drawFreePaths() {
+    drawLayer.innerHTML = "";
+
+    const all = [...freePaths];
+    if (currentPath.length > 1) all.push(currentPath);
+
+    all.forEach(path => {
+      const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      poly.setAttribute("points", path.map(p => `${p.x},${p.y}`).join(" "));
+      poly.setAttribute("fill", "none");
+      poly.setAttribute("stroke", "#dc2626");
+      poly.setAttribute("stroke-width", "4");
+      poly.setAttribute("stroke-linecap", "round");
+      poly.setAttribute("stroke-linejoin", "round");
+      drawLayer.appendChild(poly);
+    });
+  }
+
+  function clearDraw() {
+    freePaths = [];
+    currentPath = [];
+    drawFreePaths();
+  }
+
+  function downloadPNG() {
+    Plotly.downloadImage(plotDiv, {
+      format: "png",
+      filename: "graph-plot",
+      width: 1400,
+      height: 900,
+      scale: 2
+    });
+  }
+
+  function saveProject() {
+    const project = {
+      app: "2D 3D Graph Plotter",
+      version: 1,
+      plotMode: document.getElementById("plotMode").value,
+      inputType: document.getElementById("inputType").value,
+      functionInput: document.getElementById("functionInput").value,
+      params: {
+        a: document.getElementById("paramA").value,
+        b: document.getElementById("paramB").value,
+        c: document.getElementById("paramC").value
+      },
+      ranges: {
+        xMin: document.getElementById("xMin").value,
+        xMax: document.getElementById("xMax").value,
+        yMin: document.getElementById("yMin").value,
+        yMax: document.getElementById("yMax").value,
+        stepSize: document.getElementById("stepSize").value
+      },
+      manual: {
+        xData: document.getElementById("xData").value,
+        yData: document.getElementById("yData").value,
+        x3Data: document.getElementById("x3Data").value,
+        y3Data: document.getElementById("y3Data").value,
+        z3Data: document.getElementById("z3Data").value
+      },
+      area: {
+        a: document.getElementById("areaA").value,
+        b: document.getElementById("areaB").value
+      },
+      tags,
+      freePaths
+    };
+
+    const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "graph-project.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function loadProject(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const project = JSON.parse(e.target.result);
+
+        document.getElementById("plotMode").value = project.plotMode || "2d";
+        document.getElementById("inputType").value = project.inputType || "function";
+        document.getElementById("functionInput").value = project.functionInput || "y = x^2";
+
+        if (project.params) {
+          document.getElementById("paramA").value = project.params.a ?? 1;
+          document.getElementById("paramB").value = project.params.b ?? 1;
+          document.getElementById("paramC").value = project.params.c ?? 1;
+        }
+
+        if (project.ranges) {
+          document.getElementById("xMin").value = project.ranges.xMin ?? -5;
+          document.getElementById("xMax").value = project.ranges.xMax ?? 5;
+          document.getElementById("yMin").value = project.ranges.yMin ?? -5;
+          document.getElementById("yMax").value = project.ranges.yMax ?? 5;
+          document.getElementById("stepSize").value = project.ranges.stepSize ?? 0.05;
+        }
+
+        if (project.manual) {
+          document.getElementById("xData").value = project.manual.xData ?? "";
+          document.getElementById("yData").value = project.manual.yData ?? "";
+          document.getElementById("x3Data").value = project.manual.x3Data ?? "";
+          document.getElementById("y3Data").value = project.manual.y3Data ?? "";
+          document.getElementById("z3Data").value = project.manual.z3Data ?? "";
+        }
+
+        if (project.area) {
+          document.getElementById("areaA").value = project.area.a ?? 0;
+          document.getElementById("areaB").value = project.area.b ?? 1;
+        }
+
+        tags = project.tags || [];
+        freePaths = project.freePaths || [];
+
+        updateModeUI();
+        plotGraph();
+        drawFreePaths();
+      } catch (err) {
+        alert("Invalid JSON project file.");
+      }
+    };
+
+    reader.readAsText(file);
+  }
+
+  function setStatus(msg) {
+    document.getElementById("statusText").textContent = msg;
+  }
+
+  updateModeUI();
+  plotGraph();
+</script>
+
+</body>
+</html>
